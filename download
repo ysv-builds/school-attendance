@@ -1,0 +1,5 @@
+node_modules/
+.env
+school.db
+school.db-shm
+school.db-wal

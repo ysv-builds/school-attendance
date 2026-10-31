@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>School Attendance</title>
+<style>
+  :root{--bg:#f4f6fb;--card:#fff;--ink:#1d2433;--mute:#6b7488;--line:#e3e7f0;--pri:#3b5bdb;--ok:#2f9e44;--bad:#e03131}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  header{background:var(--pri);color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  header h1{margin:0;font-size:19px}
+  header button{background:rgba(255,255,255,.18);color:#fff;border:0;padding:7px 12px;border-radius:8px;cursor:pointer;margin-left:6px}
+  main{max-width:1000px;margin:0 auto;padding:16px}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .tabs button{background:#fff;border:1px solid var(--line);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:14px}
+  .tabs button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{color:var(--mute);font-size:12px;text-transform:uppercase}
+  .scroll{overflow-x:auto}
+  input,select,textarea{padding:8px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit}
+  .btn{background:var(--pri);color:#fff;border:0;padding:9px 16px;border-radius:8px;cursor:pointer;font-size:14px}
+  .btn.sec{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .btn.del{background:#fff;color:var(--bad);border:1px solid var(--line);padding:4px 10px}
+  .toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .toggle button{border:0;background:#fff;padding:6px 12px;cursor:pointer;font-size:13px}
+  .toggle .p.on{background:var(--ok);color:#fff}
+  .toggle .a.on{background:var(--bad);color:#fff}
+  .form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+  .mute{color:var(--mute);font-size:13px}
+  .pill{font-size:12px;padding:2px 8px;border-radius:10px}
+  .pill.sent{background:#e6f6ea;color:var(--ok)} .pill.failed{background:#fdeaea;color:var(--bad)}
+  .note{padding:10px;border-radius:8px;background:#eef2ff;margin-top:10px;font-size:14px}
+  .hide{display:none}
+  #login{max-width:340px;margin:80px auto}
+  #login input{width:100%;margin-bottom:10px}
+  .err{color:var(--bad);font-size:14px;min-height:18px}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">School Attendance</h1>
+  <div id="who" class="hide"><span id="whoName"></span>
+    <button id="bkBtn" class="hide" onclick="location.href='/api/backup'">Download backup</button>
+    <button onclick="changePw()">Change password</button><button onclick="logout()">Log out</button></div>
+</header>
+
+<main>
+  <div id="login" class="card">
+    <h2 style="margin-top:0">Log in</h2>
+    <input id="lu" placeholder="Username" autocomplete="username">
+    <input id="lp" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()">
+    <div class="err" id="lerr"></div>
+    <button class="btn" onclick="login()" style="width:100%">Log in</button>
+  </div>
+
+  <div id="app" class="hide">
+    <div class="tabs" id="tabs"></div>
+
+    <!-- Attendance -->
+    <section id="t-attendance">
+      <div class="row">
+        <label>Date <input type="date" id="adate"></label>
+        <label>Class <select id="aclass"></select></label>
+        <button class="btn sec" onclick="markAll('P')">All present</button>
+      </div>
+      <div class="card scroll"><table id="atable"></table></div>
+      <button class="btn" onclick="saveAttendance()">Save &amp; send SMS to parents of absentees</button>
+      <div id="amsg" class="note hide"></div>
+    </section>
+
+    <!-- Students (admin) -->
+    <section id="t-students" class="hide">
+      <div class="card">
+        <b>Add student</b>
+        <div class="form" style="margin-top:8px">
+          <input id="sName" placeholder="Student name"><input id="sRoll" placeholder="Roll no">
+          <input id="sClass" placeholder="Class (e.g. 8A)"><input id="sParent" placeholder="Parent name">
+          <input id="sPhone" placeholder="Parent mobile (10 digits)"><button class="btn" onclick="addStudent()">Add</button>
+        </div>
+      </div>
+      <div class="card">
+        <b>Import many students (CSV)</b>
+        <div class="mute">One student per line: name, roll, class, parent_name, parent_phone</div>
+        <textarea id="csv" rows="5" style="width:100%;margin:8px 0" placeholder="Aarav Sharma,1,8A,Mr Sharma,9876543210"></textarea>
+        <button class="btn" onclick="importCsv()">Import</button> <span id="csvMsg" class="mute"></span>
+      </div>
+      <div class="card scroll"><table id="stTable"></table></div>
+    </section>
+
+    <!-- Teachers (admin) -->
+    <section id="t-teachers" class="hide">
+      <div class="card">
+        <b>Add teacher login</b>
+        <div class="form" style="margin-top:8px">
+          <input id="tName" placeholder="Full name"><input id="tUser" placeholder="Username">
+          <input id="tPass" type="password" placeholder="Password (min 8)"><input id="tSubject" placeholder="Subject">
+          <input id="tPhone" placeholder="Phone"><input id="tClasses" placeholder="Classes, e.g. 8A,8B">
+          <button class="btn" onclick="addTeacher()">Add</button>
+        </div>
+      </div>
+      <div class="card scroll"><table id="tcTable"></table></div>
+      <div class="card">
+        <b>Teacher attendance</b>
+        <div class="row" style="margin-top:8px"><label>Date <input type="date" id="tdate"></label></div>
+        <table id="tatTable"></table>
+        <button class="btn" style="margin-top:10px" onclick="saveTeacherAtt()">Save teacher attendance</button>
+        <span id="tatMsg" class="mute"></span>
+      </div>
+    </section>
+
+    <!-- SMS log (admin) -->
+    <section id="t-sms" class="hide">
+      <div class="row">
+        <label>Date <input type="date" id="sdate"></label>
+        <button class="btn sec" onclick="loadSms()">Show</button>
+        <button class="btn" onclick="retrySms()">Retry failed SMS</button>
+        <span id="smsMsg" class="mute"></span>
+      </div>
+      <div class="card scroll"><table id="smsTable"></table></div>
+    </section>
+
+    <!-- Report (admin) -->
+    <section id="t-report" class="hide">
+      <div class="row">
+        <label>From <input type="date" id="rfrom"></label><label>To <input type="date" id="rto"></label>
+        <button class="btn" onclick="loadReport()">Show report</button>
+      </div>
+      <div class="card scroll"><table id="rTable"></table></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const today = () => new Date().toLocaleDateString('en-CA');
+let me = null, rows = [], teacherRows = [];
+
+async function api(path, method = 'GET', body) {
+  const r = await fetch(path, { method, headers: body ? {'Content-Type':'application/json'} : {}, body: body ? JSON.stringify(body) : undefined });
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 401 && me) { location.reload(); }
+  if (!r.ok) throw new Error(data.error || 'Something went wrong');
+  return data;
+}
+const run = fn => async (...a) => { try { await fn(...a) } catch (e) { alert(e.message) } };
+
+// ---- login ----
+async function login() {
+  $('lerr').textContent = '';
+  try { me = await api('/api/login', 'POST', { username: $('lu').value, password: $('lp').value }); start(); }
+  catch (e) { $('lerr').textContent = e.message; }
+}
+async function logout() { await api('/api/logout', 'POST'); location.reload(); }
+const changePw = run(async () => {
+  const o = prompt('Current password:'); if (!o) return;
+  const n = prompt('New password (min 8 characters):'); if (!n) return;
+  await api('/api/change-password', 'POST', { old_password: o, new_password: n }); alert('Password changed');
+});
+
+async function init() { try { me = await api('/api/me'); start(); } catch (_) {} }
+
+function start() {
+  $('login').classList.add('hide'); $('app').classList.remove('hide'); $('who').classList.remove('hide');
+  $('whoName').textContent = me.name + ' (' + me.role + ')';
+  $('bkBtn').classList.toggle('hide', me.role !== 'admin');
+  const tabs = [['attendance', 'Attendance']];
+  if (me.role === 'admin') tabs.push(['students','Students'],['teachers','Teachers'],['sms','SMS log'],['report','Report']);
+  $('tabs').innerHTML = tabs.map(([k, l]) => `<button data-k="${k}" onclick="show('${k}')">${l}</button>`).join('');
+  ['adate','tdate','sdate','rfrom','rto'].forEach(i => $(i).value = today());
+  $('adate').max = today();
+  $('adate').onchange = loadAttendance; $('aclass').onchange = loadAttendance; $('tdate').onchange = loadTeacherAtt;
+  show('attendance');
+}
+
+function show(k) {
+  document.querySelectorAll('section').forEach(s => s.classList.toggle('hide', s.id !== 't-' + k));
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.k === k));
+  ({ attendance: loadClasses, students: loadStudents, teachers: () => { loadTeachers(); loadTeacherAtt(); }, sms: loadSms, report: () => {} })[k]();
+}
+
+// ---- attendance ----
+var loadClasses = run(async function () {
+  const cl = await api('/api/classes');
+  const keep = $('aclass').value;
+  $('aclass').innerHTML = cl.length ? cl.map(c => `<option>${esc(c)}</option>`).join('') : '<option value="">(no classes yet)</option>';
+  if (cl.includes(keep)) $('aclass').value = keep;
+  await loadAttendance();
+});
+var loadAttendance = run(async function () {
+  $('amsg').classList.add('hide');
+  if (!$('aclass').value) { $('atable').innerHTML = '<tr><td class="mute">No classes available. Ask the admin to add students and assign classes.</td></tr>'; rows = []; return; }
+  rows = await api(`/api/attendance?date=${$('adate').value}&class_name=${encodeURIComponent($('aclass').value)}`);
+  rows.forEach(r => r.cur = r.status || 'P');
+  drawAtt();
+});
+function drawAtt() {
+  $('atable').innerHTML = '<tr><th>Roll</th><th>Name</th><th>Parent</th><th>Status</th><th>SMS</th></tr>' + rows.map((r, i) => `
+    <tr><td>${esc(r.roll)}</td><td>${esc(r.name)}</td><td>${esc(r.parent_name)} <span class="mute">${esc(r.parent_phone)}</span></td>
+    <td><div class="toggle"><button class="p ${r.cur==='P'?'on':''}" onclick="setSt(${i},'P')">Present</button>
+    <button class="a ${r.cur==='A'?'on':''}" onclick="setSt(${i},'A')">Absent</button></div></td>
+    <td>${r.sms_status ? `<span class="pill ${r.sms_status}">${r.sms_status}</span>` : ''}</td></tr>`).join('');
+}
+function setSt(i, v) { rows[i].cur = v; drawAtt(); }
+function markAll(v) { rows.forEach(r => r.cur = v); drawAtt(); }
+var saveAttendance = run(async function () {
+  if (!rows.length) return;
+  const abs = rows.filter(r => r.cur === 'A').length;
+  if (abs && !confirm(`${abs} student(s) marked absent. SMS will be sent to their parents. Continue?`)) return;
+  const r = await api('/api/attendance', 'POST', { date: $('adate').value, class_name: $('aclass').value,
+    records: rows.map(x => ({ student_id: x.id, status: x.cur })) });
+  await loadAttendance();
+  $('amsg').textContent = r.test_mode
+    ? `Saved. TEST MODE: ${r.sms_sent} message(s) were NOT really sent to parents, because the SMS service is not set up yet.`
+    : `Saved. SMS sent: ${r.sms_sent}` + (r.sms_failed ? `, failed: ${r.sms_failed} (admin can retry from the SMS log)` : '') + '.';
+  $('amsg').classList.remove('hide');
+});
+
+// ---- students ----
+var loadStudents = run(async function () {
+  const s = await api('/api/students');
+  $('stTable').innerHTML = `<tr><th>Class</th><th>Roll</th><th>Name</th><th>Parent</th><th>Phone</th><th></th></tr>` +
+    s.map(x => `<tr><td>${esc(x.class_name)}</td><td>${esc(x.roll)}</td><td>${esc(x.name)}</td><td>${esc(x.parent_name)}</td><td>${esc(x.parent_phone)}</td>
+    <td><button class="btn del" onclick="delStudent(${x.id})">✕</button></td></tr>`).join('') +
+    `<tr><td colspan="6" class="mute">${s.length} students</td></tr>`;
+});
+var addStudent = run(async function () {
+  await api('/api/students', 'POST', { name: $('sName').value, roll: $('sRoll').value, class_name: $('sClass').value, parent_name: $('sParent').value, parent_phone: $('sPhone').value });
+  ['sName','sRoll','sParent','sPhone'].forEach(i => $(i).value = ''); loadStudents();
+});
+var delStudent = run(async function (id) { if (confirm('Delete this student and their attendance records?')) { await api('/api/students/' + id, 'DELETE'); loadStudents(); } });
+var importCsv = run(async function () {
+  const r = await api('/api/students/import', 'POST', { csv: $('csv').value });
+  $('csvMsg').textContent = `Added ${r.added}.` + (r.errors.length ? ' Problems: ' + r.errors.join('; ') : '');
+  if (r.added) $('csv').value = ''; loadStudents();
+});
+
+// ---- teachers ----
+var loadTeachers = run(async function () {
+  const t = await api('/api/teachers');
+  $('tcTable').innerHTML = `<tr><th>Name</th><th>Username</th><th>Subject</th><th>Classes</th><th></th></tr>` + t.map(x => `
+    <tr><td>${esc(x.name)}</td><td>${esc(x.username)}</td><td>${esc(x.subject)}</td><td>${esc(x.classes.join(', '))}</td>
+    <td><button class="btn sec" onclick="editClasses(${x.id},'${esc(x.classes.join(','))}')">Classes</button>
+    <button class="btn sec" onclick="resetPw(${x.id})">Reset password</button>
+    <button class="btn del" onclick="delTeacher(${x.id})">✕</button></td></tr>`).join('');
+});
+const splitC = s => s.split(',').map(x => x.trim()).filter(Boolean);
+var addTeacher = run(async function () {
+  await api('/api/teachers', 'POST', { name: $('tName').value, username: $('tUser').value, password: $('tPass').value, subject: $('tSubject').value, phone: $('tPhone').value, classes: splitC($('tClasses').value) });
+  ['tName','tUser','tPass','tSubject','tPhone','tClasses'].forEach(i => $(i).value = ''); loadTeachers(); loadTeacherAtt();
+});
+var editClasses = run(async function (id, cur) { const v = prompt('Classes (comma separated):', cur); if (v === null) return; await api(`/api/teachers/${id}/classes`, 'PUT', { classes: splitC(v) }); loadTeachers(); });
+var resetPw = run(async function (id) { const v = prompt('New password (min 8 characters):'); if (!v) return; await api(`/api/teachers/${id}/reset-password`, 'POST', { password: v }); alert('Password reset'); });
+var delTeacher = run(async function (id) { if (confirm('Delete this teacher login?')) { await api('/api/teachers/' + id, 'DELETE'); loadTeachers(); loadTeacherAtt(); } });
+
+var loadTeacherAtt = run(async function () {
+  teacherRows = await api('/api/teacher-attendance?date=' + $('tdate').value);
+  teacherRows.forEach(r => r.cur = r.status || 'P'); drawTat();
+});
+function drawTat() {
+  $('tatTable').innerHTML = '<tr><th>Teacher</th><th>Subject</th><th>Status</th></tr>' + teacherRows.map((r, i) => `
+    <tr><td>${esc(r.name)}</td><td>${esc(r.subject)}</td><td><div class="toggle">
+    <button class="p ${r.cur==='P'?'on':''}" onclick="tSet(${i},'P')">Present</button>
+    <button class="a ${r.cur==='A'?'on':''}" onclick="tSet(${i},'A')">Absent</button></div></td></tr>`).join('');
+}
+function tSet(i, v) { teacherRows[i].cur = v; drawTat(); }
+var saveTeacherAtt = run(async function () {
+  await api('/api/teacher-attendance', 'POST', { date: $('tdate').value, records: teacherRows.map(r => ({ user_id: r.id, status: r.cur })) });
+  $('tatMsg').textContent = ' Saved.';
+});
+
+// ---- SMS log ----
+var loadSms = run(async function () {
+  const l = await api('/api/sms-log?date=' + $('sdate').value);
+  $('smsTable').innerHTML = '<tr><th>Date</th><th>Student</th><th>Class</th><th>Phone</th><th>Status</th><th>Message</th></tr>' +
+    (l.length ? l.map(x => `<tr><td>${esc(x.date)}</td><td>${esc(x.student)}</td><td>${esc(x.class_name)}</td><td>${esc(x.phone)}</td>
+      <td><span class="pill ${x.status}">${x.status}</span></td><td class="mute">${esc(x.text)}</td></tr>`).join('') : '<tr><td colspan="6" class="mute">No messages for this date.</td></tr>');
+});
+var retrySms = run(async function () {
+  const r = await api('/api/sms-retry', 'POST', { date: $('sdate').value });
+  $('smsMsg').textContent = `Retried: ${r.sent} sent, ${r.still_failed} still failing.`; loadSms();
+});
+
+// ---- report ----
+var loadReport = run(async function () {
+  const r = await api(`/api/report?from=${$('rfrom').value}&to=${$('rto').value}`);
+  $('rTable').innerHTML = '<tr><th>Class</th><th>Roll</th><th>Name</th><th>Present</th><th>Absent</th></tr>' +
+    r.map(x => `<tr><td>${esc(x.class_name)}</td><td>${esc(x.roll)}</td><td>${esc(x.name)}</td><td>${x.present || 0}</td><td>${x.absent || 0}</td></tr>`).join('');
+});
+
+init();
+</script>
+</body>
+</html>

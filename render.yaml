@@ -1,0 +1,32 @@
+# Render "Blueprint": tells Render how to run this app online.
+# Note: a persistent disk (needed to keep the database) requires a paid plan.
+services:
+  - type: web
+    name: school-attendance
+    runtime: node
+    region: singapore
+    plan: 0.5c-512mb
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DB_FILE
+        value: /opt/data/school.db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SCHOOL_NAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Keep "console" until the school's DLT registration is approved. Then change to
+      # fast2sms or msg91 in the Render dashboard and add the matching keys there.
+      - key: SMS_PROVIDER
+        value: console
+    disk:
+      name: school-data
+      mountPath: /opt/data
+      sizeGB: 1
